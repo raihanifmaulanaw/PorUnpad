@@ -6,13 +6,29 @@ const express = require("express"),
   crypto = require("crypto"),
   Database = require("better-sqlite3");
 
+// === Integrasi Cloudinary ===
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'porunpad_uploads',
+    allowed_formats: ['jpg', 'png', 'webp'],
+  },
+});
+
 const app = express(),
   PORT = process.env.PORT || 3000,
   ROOT = __dirname,
-  UPLOAD = path.join(ROOT, "public/uploads"),
   DATA = path.join(ROOT, "data");
 
-fs.mkdirSync(UPLOAD, { recursive: true });
 fs.mkdirSync(DATA, { recursive: true });
 
 const db = new Database(path.join(DATA, "porunpad.db"));
@@ -56,24 +72,13 @@ function auth(req, res, next) {
 }
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: UPLOAD,
-    filename: (req, file, cb) => {
-      const ext = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-      }[file.mimetype];
-      if (!ext) return cb(new Error("Format foto harus JPG, PNG, atau WebP."));
-      cb(null, Date.now() + "-" + crypto.randomBytes(5).toString("hex") + ext);
-    },
-  }),
+  storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) =>
     cb(null, ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)),
 });
 
-const image = (req) => (req.file ? "/uploads/" + req.file.filename : null);
+const image = (req) => (req.file ? req.file.path : null);
 
 // Fungsi pembantu hash password sederhana
 function hashPassword(password) {
