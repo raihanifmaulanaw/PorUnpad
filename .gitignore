@@ -1,0 +1,1 @@
+node_modules/\ndata/*.db\npublic/uploads/*\n!public/uploads/.gitkeep\nuploads/*\n.env\n
