@@ -1,2 +1,132 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Masuk — PorUnpad</title><link rel="stylesheet" href="/style.css"></head><body class="login"><section class="visual"><a class="logo" href="/"><span class="crest">U</span><span class="brand-copy"><strong>PorUnpad</strong><small>Universitas Padjadjaran</small><small class="brand-tag">Lapor Unpad</small></span></a><div><h1>Kampus yang lebih baik,<br><em>dimulai dari kita.</em></h1><p>Satu akun untuk menyuarakan perbaikan kampus dan membantu menemukan barang yang hilang.</p></div><small>RUANG PEDULI KAMPUS · UNIVERSITAS PADJADJARAN</small></section><section class="side"><div class="box"><a class="back" href="/">← Kembali ke PorUnpad</a><h2 id="heading">Selamat datang.</h2><p class="sub" id="sub">Gunakan email kampus. Kode OTP lokal akan ditampilkan di terminal VS Code.</p><form id="form"><label class="field" id="email-wrap">Email kampus<input id="email" type="email" placeholder="nama@mail.unpad.ac.id" required></label><label class="field" id="code-wrap" hidden>Kode verifikasi<input id="code" inputmode="numeric" maxlength="6" placeholder="Masukkan kode 6 digit"></label><button class="btn" id="submit" type="submit">Kirim kode verifikasi ↗</button><button class="btn outline" id="back" type="button" hidden>Gunakan email lain</button></form><p class="msg" id="msg"></p><p class="note">Setelah masuk, lengkapi NPM, username, dan program studi. Jangan bagikan kode verifikasi.</p></div></section>
-<script>(()=>{const $=id=>document.getElementById(id);let step="email";let next=new URLSearchParams(location.search).get("next")||"/";if(!next.startsWith("/")||next.startsWith("//"))next="/";const say=(t,err=false)=>{$("msg").textContent=t;$("msg").className="msg"+(err?" err":"")};fetch("/api/auth/session").then(r=>r.json()).then(d=>{if(d.user)location.replace(next)});$("back").onclick=()=>{step="email";$("email-wrap").hidden=false;$("code-wrap").hidden=true;$("back").hidden=true;$("submit").textContent="Kirim kode verifikasi ↗";say("")};$("form").addEventListener("submit",async e=>{e.preventDefault();const b=$("submit");b.disabled=true;try{const email=$("email").value.trim().toLowerCase();if(!/^[^\s@]+@mail\.unpad\.ac\.id$/i.test(email))throw Error("Gunakan email kampus @mail.unpad.ac.id.");const url=step==="email"?"/api/auth/start":"/api/auth/verify",body=step==="email"?{email}:{email,code:$("code").value.trim()};const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}),d=await r.json();if(!r.ok)throw Error(d.error);if(step==="email"){step="code";$("email-wrap").hidden=true;$("code-wrap").hidden=false;$("back").hidden=false;$("heading").textContent="Periksa terminalmu.";$("sub").textContent="Kode OTP untuk "+email+" tercetak di terminal server.";$("submit").textContent="Verifikasi & masuk ↗";say("Kode OTP dicetak di terminal VS Code.")}else location.replace(next)}catch(err){say(err.message,true)}finally{b.disabled=false}})})();</script></body></html>
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Masuk — PorUnpad</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login">
+  <section class="visual">
+    <a class="logo" href="/">
+      <span class="crest">U</span>
+      <span class="brand-copy">
+        <strong>PorUnpad</strong>
+        <small>Universitas Padjadjaran</small>
+        <small class="brand-tag">Lapor Unpad</small>
+      </span>
+    </a>
+    <div>
+      <h1>Kampus yang lebih baik,<br><em>dimulai dari kita.</em></h1>
+      <p>Satu akun untuk menyuarakan perbaikan kampus dan membantu menemukan barang yang hilang.</p>
+    </div>
+    <small>RUANG PEDULI KAMPUS · UNIVERSITAS PADJADJARAN</small>
+  </section>
+
+  <section class="side">
+    <div class="box">
+      <a class="back" href="/">← Kembali ke PorUnpad</a>
+      <h2 id="heading">Selamat datang.</h2>
+      <p class="sub" id="sub">Gunakan email kampus dan password akunmu.</p>
+      
+      <form id="form">
+        <label class="field">
+          Email kampus
+          <input id="email" type="email" placeholder="nama@mail.unpad.ac.id" required>
+        </label>
+        
+        <label class="field">
+          Password
+          <input id="password" type="password" placeholder="Minimal 6 karakter" required>
+        </label>
+
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+          <button class="btn" id="btnLogin" type="submit" style="flex: 1;">Masuk ↗</button>
+          <button class="btn outline" id="btnRegister" type="button" style="flex: 1;">Daftar Baru</button>
+        </div>
+      </form>
+      
+      <p class="msg" id="msg"></p>
+      <p class="note">Setelah masuk, lengkapi NPM, username, dan program studi.</p>
+    </div>
+  </section>
+
+<script>
+(()=>{
+  const $ = id => document.getElementById(id);
+  let next = new URLSearchParams(location.search).get("next") || "/";
+  if (!next.startsWith("/") || next.startsWith("//")) next = "/";
+
+  const say = (t, err = false) => {
+    $("msg").textContent = t;
+    $("msg").className = "msg" + (err ? " err" : "");
+  };
+
+  // Cek sesi aktif
+  fetch("/api/auth/session")
+    .then(r => r.json())
+    .then(d => { if (d.user) location.replace(next); });
+
+  // Tombol Masuk (Login)
+  $("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const btn = $("btnLogin");
+    btn.disabled = true;
+    try {
+      const email = $("email").value.trim().toLowerCase();
+      const password = $("password").value;
+
+      if (!/^[^\s@]+@mail\.unpad\.ac\.id$/i.test(email)) {
+        throw Error("Gunakan email kampus @mail.unpad.ac.id.");
+      }
+
+      const r = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const d = await r.json();
+      if (!r.ok) throw Error(d.error || "Gagal masuk.");
+
+      location.replace(next);
+    } catch (err) {
+      say(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Tombol Daftar Baru (Register)
+  $("btnRegister").onclick = async () => {
+    const btn = $("btnRegister");
+    btn.disabled = true;
+    try {
+      const email = $("email").value.trim().toLowerCase();
+      const password = $("password").value;
+
+      if (!/^[^\s@]+@mail\.unpad\.ac\.id$/i.test(email)) {
+        throw Error("Gunakan email kampus @mail.unpad.ac.id.");
+      }
+      if (!password || password.length < 6) {
+        throw Error("Password minimal 6 karakter.");
+      }
+
+      const r = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const d = await r.json();
+      if (!r.ok) throw Error(d.error || "Gagal mendaftar.");
+
+      say("Pendaftaran berhasil! Silakan klik tombol Masuk.");
+    } catch (err) {
+      say(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+})();
+</script>
+</body>
+</html>

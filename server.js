@@ -4,8 +4,7 @@ const express = require("express"),
   path = require("path"),
   fs = require("fs"),
   crypto = require("crypto"),
-  Database = require("better-sqlite3"),
-  nodemailer = require("nodemailer"); // <-- Modul Nodemailer ditambahkan
+  Database = require("better-sqlite3");
 
 const app = express(),
   PORT = process.env.PORT || 3000,
@@ -19,7 +18,16 @@ fs.mkdirSync(DATA, { recursive: true });
 const db = new Database(path.join(DATA, "porunpad.db"));
 db.pragma("journal_mode=WAL");
 
-db.exec(`CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,npm TEXT UNIQUE,username TEXT NOT NULL,prodi TEXT NOT NULL,created_at TEXT DEFAULT(datetime('now')));
+// Tabel profiles ditambah kolom password_hash
+db.exec(`CREATE TABLE IF NOT EXISTS profiles(
+  user_id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  npm TEXT UNIQUE,
+  username TEXT NOT NULL,
+  prodi TEXT NOT NULL,
+  created_at TEXT DEFAULT(datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,reporter_name TEXT NOT NULL,prodi TEXT NOT NULL,category TEXT NOT NULL,title TEXT NOT NULL,description TEXT NOT NULL,location TEXT NOT NULL,image_url TEXT,status TEXT DEFAULT 'Menunggu',created_at TEXT DEFAULT(datetime('now')));
 CREATE TABLE IF NOT EXISTS lost_items(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,username TEXT NOT NULL,kind TEXT NOT NULL,title TEXT NOT NULL,description TEXT NOT NULL,location TEXT NOT NULL,contact TEXT NOT NULL,image_url TEXT,status TEXT DEFAULT 'Aktif',created_at TEXT DEFAULT(datetime('now')));`);
 
@@ -35,11 +43,9 @@ app.use(
 );
 app.use(express.static(path.join(ROOT, "public")));
 
-const pending = new Map(),
-  emailOK = (e) => /^[^\s@]+@mail\.unpad\.ac\.id$/i.test(String(e || "")),
-  clean = (v, n = 2500) => String(v ?? "").trim().slice(0, n),
-  uid = () => crypto.randomUUID(),
-  user = (req) => req.session.user;
+const emailOK = (e) => /^[^\s@]+@mail\.unpad\.ac\.id$/i.test(String(e || "")),
+      clean = (v, n = 2500) => String(v ?? "").trim().slice(0, n),
+      user = (req) => req.session.user;
 
 function auth(req, res, next) {
   if (!user(req))
@@ -69,64 +75,60 @@ const upload = multer({
 
 const image = (req) => (req.file ? "/uploads/" + req.file.filename : null);
 
-// --- KONFIGURASI PENGIRIM EMAIL NODEMAILER ---
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // Gunakan koneksi SSL yang diwajibkan Google
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    // Membantu mencegah error jaringan internal di beberapa server cloud
-    rejectUnauthorized: false
-  }
-});
+// Fungsi pembantu hash password sederhana
+function hashPassword(password) {
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
 
 app.get("/login", (req, res) => res.sendFile(path.join(ROOT, "public/login.html")));
 app.get("/api/auth/session", (req, res) => res.json({ user: user(req) || null }));
 
-// --- API AUTH START (YANG DIPERBARUI UNTUK MENGIRIM EMAIL OTP) ---
-app.post("/api/auth/start", async (req, res) => {
+// --- API REGISTER (Daftar Akun Baru dengan Password) ---
+app.post("/api/auth/register", (req, res) => {
   const email = clean(req.body.email, 254).toLowerCase();
+  const password = clean(req.body.password, 100);
+  const username = clean(req.body.username, 40) || email.split("@")[0];
+  const prodi = clean(req.body.prodi, 120) || "Belum diatur";
+
   if (!emailOK(email))
     return res.status(400).json({ error: "Gunakan email kampus yang berakhiran @mail.unpad.ac.id." });
-  
-  const code = String(crypto.randomInt(0, 1e6)).padStart(6, "0");
-  pending.set(email, { code, expires: Date.now() + 600000, attempts: 0 });
-
-  const mailOptions = {
-    from: `"PorUnpad" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Kode OTP Login PorUnpad",
-    text: `Halo,\n\nKode OTP Anda adalah: ${code}\n\nKode ini akan kedaluwarsa dalam 10 menit. Mohon jangan berikan kode ini kepada siapa pun.`,
-  };
+  if (!password || password.length < 6)
+    return res.status(400).json({ error: "Password minimal 6 karakter." });
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`[PorUnpad OTP] Berhasil mengirim OTP ke ${email}`);
-    res.json({ ok: true });
-  } catch (error) {
-    console.error("[PorUnpad OTP Error] Gagal mengirim email:", error);
-    res.status(500).json({ error: "Gagal mengirim kode OTP ke email. Pastikan konfigurasi email di Render sudah benar." });
+    const userId = crypto.createHash("sha256").update(email).digest("hex").slice(0, 32);
+    const password_hash = hashPassword(password);
+
+    db.prepare(
+      "INSERT INTO profiles(user_id, email, password_hash, username, prodi) VALUES(?, ?, ?, ?, ?)"
+    ).run(userId, email, password_hash, username, prodi);
+
+    res.json({ ok: true, message: "Pendaftaran berhasil, silakan login." });
+  } catch (err) {
+    res.status(409).json({ error: "Email sudah terdaftar. Silakan langsung masuk." });
   }
 });
 
-app.post("/api/auth/verify", (req, res) => {
-  const email = clean(req.body.email, 254).toLowerCase(),
-    code = clean(req.body.code, 6),
-    p = pending.get(email);
-  if (!p || Date.now() > p.expires || p.attempts >= 5 || p.code !== code) {
-    if (p) p.attempts++;
-    return res.status(400).json({ error: "Kode salah atau kedaluwarsa. Minta kode baru." });
+// --- API LOGIN (Masuk dengan Email & Password) ---
+app.post("/api/auth/login", (req, res) => {
+  const email = clean(req.body.email, 254).toLowerCase();
+  const password = clean(req.body.password, 100);
+
+  if (!emailOK(email))
+    return res.status(400).json({ error: "Gunakan email kampus @mail.unpad.ac.id." });
+
+  const account = db.prepare("SELECT * FROM profiles WHERE email = ?").get(email);
+
+  if (!account || account.password_hash !== hashPassword(password)) {
+    return res.status(400).json({ error: "Email atau password salah." });
   }
-  pending.delete(email);
+
   req.session.user = {
-    id: crypto.createHash("sha256").update(email).digest("hex").slice(0, 32),
-    email,
-    name: email.split("@")[0],
+    id: account.user_id,
+    email: account.email,
+    name: account.username,
   };
+
   res.json({ user: req.session.user });
 });
 
@@ -152,8 +154,8 @@ app.post("/api/profile", auth, (req, res) => {
     return res.status(400).json({ error: "Username harus 3–40 karakter." });
   try {
     db.prepare(
-      "INSERT INTO profiles(user_id,email,npm,username,prodi) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET npm=excluded.npm,username=excluded.username,prodi=excluded.prodi"
-    ).run(u.id, u.email, npm, username, prodi);
+      "UPDATE profiles SET npm=?, username=?, prodi=? WHERE user_id=?"
+    ).run(npm, username, prodi, u.id);
     res.json({ profile: { npm, username, prodi } });
   } catch {
     res.status(409).json({ error: "NPM mungkin sudah terdaftar." });
@@ -182,7 +184,7 @@ app.post("/api/reports", auth, upload.single("image"), (req, res) => {
   const p = db.prepare("SELECT username FROM profiles WHERE user_id=?").get(u.id);
   if (!p) return res.status(400).json({ error: "Lengkapi profil terlebih dahulu." });
   const r = {
-    id: uid(),
+    id: crypto.randomUUID(),
     reporter_name: p.username,
     prodi,
     category,
@@ -233,7 +235,7 @@ app.post("/api/items", auth, upload.single("image"), (req, res) => {
   const p = db.prepare("SELECT username FROM profiles WHERE user_id=?").get(u.id);
   if (!p) return res.status(400).json({ error: "Lengkapi profil terlebih dahulu." });
   const i = {
-    id: uid(),
+    id: crypto.randomUUID(),
     username: p.username,
     kind,
     title,
