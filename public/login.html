@@ -71,7 +71,7 @@
     .then(r => r.json())
     .then(d => { if (d.user) location.replace(next); });
 
-  // Tombol Masuk (Login)
+  // Tombol Masuk (Login) - HANYA MEMERLUKAN USERNAME & PASSWORD
   $("form").addEventListener("submit", async e => {
     e.preventDefault();
     const btn = $("btnLogin");
@@ -79,6 +79,9 @@
     try {
       const username = $("username").value.trim();
       const password = $("password").value;
+
+      if (!username) throw Error("Masukkan username.");
+      if (!password) throw Error("Masukkan password.");
 
       const r = await fetch("/api/auth/login", {
         method: "POST",
@@ -96,7 +99,7 @@
     }
   });
 
-  // Tombol Daftar Baru (Register)
+  // Tombol Daftar Baru (Register) - MEMERLUGAN USERNAME, EMAIL KAMPUS, & PASSWORD
   $("btnRegister").onclick = async () => {
     const btn = $("btnRegister");
     btn.disabled = true;
