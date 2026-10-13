@@ -27,12 +27,17 @@
     <div class="box">
       <a class="back" href="/">← Kembali ke PorUnpad</a>
       <h2 id="heading">Selamat datang.</h2>
-      <p class="sub" id="sub">Gunakan email kampus dan password akunmu.</p>
+      <p class="sub" id="sub">Masukkan username dan password akunmu.</p>
       
       <form id="form">
         <label class="field">
-          Email kampus
-          <input id="email" type="email" placeholder="nama@mail.unpad.ac.id" required>
+          Username
+          <input id="username" type="text" placeholder="Masukkan username" required>
+        </label>
+
+        <label class="field" id="emailFieldContainer">
+          Email Kampus (Wajib saat Daftar)
+          <input id="email" type="email" placeholder="nama@mail.unpad.ac.id">
         </label>
         
         <label class="field">
@@ -47,7 +52,7 @@
       </form>
       
       <p class="msg" id="msg"></p>
-      <p class="note">Setelah masuk, lengkapi NPM, username, dan program studi.</p>
+      <p class="note">Gunakan username untuk masuk.</p>
     </div>
   </section>
 
@@ -62,7 +67,6 @@
     $("msg").className = "msg" + (err ? " err" : "");
   };
 
-  // Cek sesi aktif
   fetch("/api/auth/session")
     .then(r => r.json())
     .then(d => { if (d.user) location.replace(next); });
@@ -73,17 +77,13 @@
     const btn = $("btnLogin");
     btn.disabled = true;
     try {
-      const email = $("email").value.trim().toLowerCase();
+      const username = $("username").value.trim();
       const password = $("password").value;
-
-      if (!/^[^\s@]+@mail\.unpad\.ac\.id$/i.test(email)) {
-        throw Error("Gunakan email kampus @mail.unpad.ac.id.");
-      }
 
       const r = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ username, password })
       });
       const d = await r.json();
       if (!r.ok) throw Error(d.error || "Gagal masuk.");
@@ -101,20 +101,18 @@
     const btn = $("btnRegister");
     btn.disabled = true;
     try {
+      const username = $("username").value.trim();
       const email = $("email").value.trim().toLowerCase();
       const password = $("password").value;
 
-      if (!/^[^\s@]+@mail\.unpad\.ac\.id$/i.test(email)) {
-        throw Error("Gunakan email kampus @mail.unpad.ac.id.");
-      }
-      if (!password || password.length < 6) {
-        throw Error("Password minimal 6 karakter.");
-      }
+      if (!username || username.length < 3) throw Error("Username minimal 3 karakter.");
+      if (!/^[^\s@]+@mail\.unpad\.ac\.id$/i.test(email)) throw Error("Gunakan email kampus @mail.unpad.ac.id.");
+      if (!password || password.length < 6) throw Error("Password minimal 6 karakter.");
 
       const r = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ username, email, password })
       });
       const d = await r.json();
       if (!r.ok) throw Error(d.error || "Gagal mendaftar.");
