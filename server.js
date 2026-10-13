@@ -71,11 +71,17 @@ const image = (req) => (req.file ? "/uploads/" + req.file.filename : null);
 
 // --- KONFIGURASI PENGIRIM EMAIL NODEMAILER ---
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // Gunakan koneksi SSL yang diwajibkan Google
   auth: {
-    user: process.env.EMAIL_USER, // Alamat Gmail Pengirim
-    pass: process.env.EMAIL_PASS, // App Password Gmail Pengirim
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    // Membantu mencegah error jaringan internal di beberapa server cloud
+    rejectUnauthorized: false
+  }
 });
 
 app.get("/login", (req, res) => res.sendFile(path.join(ROOT, "public/login.html")));
