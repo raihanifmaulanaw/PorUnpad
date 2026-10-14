@@ -206,7 +206,7 @@ app.post("/api/profile", auth, async (req, res) => {
 app.get("/api/reports", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, reporter_name, prodi, category, title, description, location, image_url, status, created_at FROM reports ORDER BY created_at DESC LIMIT 60"
+      "SELECT id, user_id, reporter_name, prodi, category, title, description, location, image_url, status, created_at FROM reports ORDER BY created_at DESC LIMIT 60"
     );
     res.json({ reports: result.rows });
   } catch {
@@ -251,7 +251,7 @@ app.post("/api/reports", auth, upload.single("image"), async (req, res) => {
 app.get("/api/items", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, username, kind, title, description, location, contact, image_url, status, created_at FROM lost_items WHERE status='Aktif' ORDER BY created_at DESC LIMIT 100"
+      "SELECT id, user_id, username, kind, title, description, location, contact, image_url, status, created_at FROM lost_items WHERE status='Aktif' ORDER BY created_at DESC LIMIT 100"
     );
     res.json({ items: result.rows });
   } catch {
@@ -293,7 +293,35 @@ app.post("/api/items", auth, upload.single("image"), async (req, res) => {
   res.status(201).json({ item: i });
 });
 
+
+// --- API HAPUS LAPORAN ---
+app.delete("/api/reports/:id", auth, async (req, res) => {
+  try {
+    const check = await pool.query("SELECT * FROM reports WHERE id = $1 AND user_id = $2", [req.params.id, user(req).id]);
+    if (check.rows.length === 0) return res.status(403).json({ error: "Tidak berhak menghapus." });
+    
+    await pool.query("DELETE FROM reports WHERE id = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Gagal menghapus laporan." });
+  }
+});
+
+// --- API HAPUS BARANG HILANG ---
+app.delete("/api/items/:id", auth, async (req, res) => {
+  try {
+    const check = await pool.query("SELECT * FROM lost_items WHERE id = $1 AND user_id = $2", [req.params.id, user(req).id]);
+    if (check.rows.length === 0) return res.status(403).json({ error: "Tidak berhak menghapus." });
+    
+    await pool.query("DELETE FROM lost_items WHERE id = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Gagal menghapus postingan." });
+  }
+});
+
 app.use((err, req, res, next) =>
+
   res.status(400).json({
     error: err.code === "LIMIT_FILE_SIZE" ? "Ukuran foto maksimal 5 MB." : err.message || "Terjadi kesalahan.",
   })

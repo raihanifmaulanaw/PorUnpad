@@ -2,7 +2,28 @@
 function authLink(){const a=$("auth-link");if(session){a.textContent="Keluar";a.href="#";a.onclick=async e=>{e.preventDefault();await fetch("/api/auth/logout",{method:"POST"});location.reload()};$("user-label").textContent=profile?"Halo, "+profile.username:"Akun aktif"}else{$("user-label").textContent="Warga Unpad";a.textContent="Masuk / Daftar";a.href="/login?next=/";a.onclick=null}}
 function profileModal(){if($("profile-modal"))return;const b=document.createElement("div");b.className="backdrop";b.id="profile-modal";b.innerHTML='<section class="modal"><h2>Lengkapi profilmu</h2><p>Isi NPM, username, dan program studi.</p><form id="profile-form"><label>NPM *<input name="npm" required minlength="4" maxlength="30"></label><label>Username *<input name="username" required minlength="3" maxlength="40"></label><label>Program studi *<input name="prodi" required minlength="2" maxlength="120" placeholder="Ketik nama prodi"></label><p id="profile-message" class="form-message"></p><button class="btn">Simpan profil ↗</button></form></section>';document.body.appendChild(b);$("profile-form").onsubmit=async e=>{e.preventDefault();try{const d=await json("/api/profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});profile=d.profile;b.remove();authLink();toast("Profil tersimpan.")}catch(x){msg("profile-message",x.message,true)}}}
 function renderReports(){$("report-count").textContent=reports.length+" laporan";$("report-list").innerHTML=reports.length?reports.map(r=>'<article class="report-card"><div class="card-meta"><span>'+esc(r.prodi)+'</span><span class="status">'+esc(r.status)+'</span></div><h4>'+esc(r.title)+'</h4><p>'+esc(r.description)+'</p>'+(r.image_url?'<img src="'+esc(r.image_url)+'" alt="Bukti foto">':'')+'<div class="card-bottom"><span>⌖ '+esc(r.location)+'</span><span>'+esc(date(r.created_at))+'</span></div><p>'+esc(r.category)+" · "+esc(r.reporter_name)+"</p></article>").join(""):'<p class="empty">Belum ada laporan.</p>'}
-function renderItems(){const q=$("forum-search").value.trim().toLowerCase(),shown=items.filter(i=>(filter==="Semua"||i.kind===filter)&&(!q||[i.title,i.description,i.location,i.username].join(" ").toLowerCase().includes(q)));$("item-grid").innerHTML=shown.length?shown.map(i=>'<article class="item-card"><div class="card-meta"><span class="kind-badge '+(i.kind==="Ditemukan"?"found":"")+'">'+(i.kind==="Ditemukan"?"✓ DITEMUKAN":"⌕ HILANG")+'</span><span>'+esc(date(i.created_at))+'</span></div>'+(i.image_url?'<img src="'+esc(i.image_url)+'" alt="Foto barang">':'')+'<h3>'+esc(i.title)+'</h3><p class="desc">'+esc(i.description)+'</p><div class="item-location">⌖ '+esc(i.location)+'</div><div class="item-contact">Kontak: '+esc(i.contact)+'</div><div class="item-author">Diposting oleh '+esc(i.username)+'</div></article>').join(""):'<p class="empty">Belum ada postingan yang cocok.</p>';$("forum-count").textContent=shown.length+" postingan"}
+function renderItems(){const q=$("forum-search").value.trim().toLowerCase(),shown=items.filter(i=>(filter==="Semua"||i.kind===filter)&&(!q||[i.title,i.description,i.location,i.username].join(" ").toLowerCase().includes(q)));$("item-grid").innerHTML=shown.length?shown.map(i=>'<article class="item-card"><div class="card-meta"><span class="kind-badge '+(i.kind==="Ditemukan"?"found":"")+'">'+(i.kind==="Ditemukan"?"✓ DITEMUKAN":"⌕ HILANG")+'</span><span>'+esc(date(i.created_at))+'</span></div>'+(i.image_url?'<img src="'+esc(i.image_url)+'" alt="Foto barang">':'')+'<h3>'+esc(i.title)+'</h3><p class="desc">'+esc(i.description)+'</p><div class="item-location">⌖ '+esc(i.location)+'</div><div class="item-contact">Kontak: '+esc(i.contact)+'</div><div class="item-author">Diposting oleh '+esc(i.username)+'</div>' + (session && session.id === i.user_id ? '<button class="btn light" style="margin-top:10px; background: #ffebee; color: #c62828;" onclick="hapusBarang(\''+i.id+'\')">Hapus Postingan</button>' : '') + '</article>').join(""):'<p class="empty">Belum ada postingan yang cocok.</p>';$("forum-count").textContent=shown.length+" postingan"}
+
+window.hapusLaporan = async (id) => {
+  if (!confirm("Apakah kamu yakin ingin menghapus laporan ini?")) return;
+  try {
+    await json("/api/reports/" + id, { method: "DELETE" });
+    reports = reports.filter(r => r.id !== id);
+    renderReports();
+    toast("Laporan berhasil dihapus.");
+  } catch(e) { toast(e.message); }
+};
+
+window.hapusBarang = async (id) => {
+  if (!confirm("Apakah kamu yakin ingin menghapus postingan ini?")) return;
+  try {
+    await json("/api/items/" + id, { method: "DELETE" });
+    items = items.filter(i => i.id !== id);
+    renderItems();
+    toast("Postingan berhasil dihapus.");
+  } catch(e) { toast(e.message); }
+};
+
 async function load(){try{reports=(await json("/api/reports")).reports;renderReports()}catch{}try{items=(await json("/api/items")).items;renderItems()}catch{}}
 function needLogin(){if(!session){location.href="/login?next="+encodeURIComponent(location.pathname+location.hash);return false}return true}
 async function send(form,url,id){if(!needLogin())return;if(!profile){profileModal();msg("profile-message","Lengkapi profil sebelum mengirim.");return}const b=form.querySelector('button[type="submit"],button:not([type])');if(b)b.disabled=true;try{const d=await json(url,{method:"POST",body:new FormData(form)});form.reset();if(url==="/api/reports"){reports.unshift(d.report);renderReports();toast("Laporan terkirim.")}else{items.unshift(d.item);renderItems();$("modal").hidden=true;toast("Postingan diterbitkan.")}msg(id,"")}catch(e){msg(id,e.message,true)}finally{if(b)b.disabled=false}}
